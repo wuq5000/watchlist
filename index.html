@@ -1425,6 +1425,7 @@ function escHtml(s) {
 // ══════════════════════════════════════════
 function openDetail(item) {
   if (!item) return;
+  sharedItemCache = item; // 缓存，供导入用
   const cat = CATS[item.category] || CATS.tv;
   const stars = renderStars(item.rating);
   const tags = (item.tags||[]).map(t=>`<span class="tag-chip">${escHtml(t)}</span>`).join('');
@@ -1484,9 +1485,14 @@ function openDetail(item) {
       <div class="share-url" id="shareUrlText">${shareURL}</div>
       <button class="btn-copy" onclick="copyShare('${item.id}')">复制链接</button>
     </div>
-    ${!shareMode ? `<div class="modal-actions" style="margin-top:16px">
+    ${shareMode ? `
+      <div style="margin-top:16px;padding:16px;background:var(--surface2);border-radius:var(--radius-sm);text-align:center">
+        <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px">这是朋友分享给你的作品，要加入你自己的列表吗？</div>
+        <button class="btn btn-primary" style="width:100%" onclick="importSharedItem()">＋ 加入我的列表</button>
+      </div>
+    ` : `<div class="modal-actions" style="margin-top:16px">
       <button class="btn btn-ghost" onclick="closeModal('detailModal');openEditModal('${item.id}')">✏️ 编辑</button>
-    </div>` : ''}
+    </div>`}
   `;
   document.getElementById('detailModal').style.display = 'flex';
 }
@@ -1496,6 +1502,36 @@ function copyShare(itemId) {
   if (!item) return;
   const url = generateShareURL(item);
   navigator.clipboard.writeText(url).then(()=>toast('链接已复制！'));
+}
+
+// 导入分享的作品到自己的列表
+let sharedItemCache = null;
+
+function importSharedItem() {
+  if (!sharedItemCache) return;
+  const newItem = {
+    ...sharedItemCache,
+    id: uid(),           // 生成新 id，不覆盖自己的数据
+    added: Date.now(),
+    updated: Date.now(),
+    status: 'todo',      // 导入后默认设为"待看"
+  };
+  load(); // 确保读取最新本地数据
+  // 检查是否已有同名
+  const exists = db.find(x => x.title === newItem.title && x.category === newItem.category);
+  if (exists) {
+    if (!confirm(`「${newItem.title}」已在你的列表中，还是要再加一次吗？`)) return;
+  }
+  db.unshift(newItem);
+  save();
+  closeModal('detailModal');
+  // 跳转到干净页面（去掉 share 参数）
+  shareMode = false;
+  document.getElementById('share-banner').style.display = 'none';
+  history.replaceState(null, '', location.pathname);
+  buildTree();
+  renderCards();
+  toast(`「${newItem.title}」已加入你的列表！状态已设为"待看"`);
 }
 
 // ══════════════════════════════════════════
