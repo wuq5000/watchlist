@@ -1,0 +1,1723 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>观单 · Watchlist</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Space+Mono:wght@400;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0f0f13;
+  --surface: #1a1a24;
+  --surface2: #22222f;
+  --surface3: #2a2a3a;
+  --border: rgba(255,255,255,0.08);
+  --text: #f0eee8;
+  --text-muted: #888899;
+  --text-dim: #555566;
+
+  --cat-tv:      #ff6b6b;
+  --cat-movie:   #ffa94d;
+  --cat-anime:   #cc5de8;
+  --cat-manga:   #339af0;
+  --cat-book:    #51cf66;
+  --cat-article: #20c997;
+  --cat-video:   #f06595;
+
+  --status-todo:     #748ffc;
+  --status-watching: #ffa94d;
+  --status-done:     #51cf66;
+
+  --accent: #7c6af7;
+  --glow: rgba(124,106,247,0.3);
+
+  --sidebar-w: 240px;
+  --radius: 16px;
+  --radius-sm: 8px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Noto Sans SC', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── NOISE TEXTURE OVERLAY ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 1000;
+  opacity: 0.4;
+}
+
+/* ── LAYOUT ── */
+#app { display: flex; min-height: 100vh; }
+
+/* ── SIDEBAR ── */
+#sidebar {
+  width: var(--sidebar-w);
+  min-height: 100vh;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0; left: 0;
+  z-index: 100;
+  overflow-y: auto;
+}
+
+.sidebar-logo {
+  padding: 24px 20px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.logo-title {
+  font-family: 'Noto Serif SC', serif;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  background: linear-gradient(135deg, #7c6af7, #f06595, #ffa94d);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.logo-sub {
+  font-family: 'Space Mono', monospace;
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 3px;
+  margin-top: 2px;
+}
+
+.sidebar-section {
+  padding: 16px 12px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+/* ── STATUS FILTERS ── */
+.status-filters {
+  padding: 4px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.status-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s;
+  font-size: 13px;
+  color: var(--text-muted);
+  border: none;
+  background: none;
+  text-align: left;
+  width: 100%;
+}
+
+.status-btn:hover { background: var(--surface2); color: var(--text); }
+.status-btn.active { background: var(--surface3); color: var(--text); }
+
+.status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── TREE MENU ── */
+.tree-menu { padding: 4px 12px 12px; }
+
+.tree-category {
+  margin-bottom: 4px;
+}
+
+.tree-cat-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s;
+  user-select: none;
+}
+
+.tree-cat-header:hover { background: var(--surface2); }
+.tree-cat-header.active { background: var(--surface2); }
+
+.cat-icon {
+  width: 18px; height: 18px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.cat-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  flex: 1;
+}
+
+.cat-count {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-family: 'Space Mono', monospace;
+}
+
+.tree-chevron {
+  font-size: 9px;
+  color: var(--text-dim);
+  transition: transform 0.2s;
+}
+
+.tree-chevron.open { transform: rotate(90deg); }
+
+.tree-sub {
+  padding-left: 26px;
+  display: none;
+}
+
+.tree-sub.open { display: block; }
+
+.tree-sub-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-muted);
+  transition: all 0.15s;
+}
+
+.tree-sub-item:hover { background: var(--surface2); color: var(--text); }
+.tree-sub-item.active { background: var(--surface3); color: var(--text); font-weight: 500; }
+
+.sub-count {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-family: 'Space Mono', monospace;
+}
+
+/* ── ADD BTN ── */
+.sidebar-add {
+  margin: auto 12px 16px;
+}
+
+.btn-add-main {
+  width: 100%;
+  padding: 11px;
+  background: linear-gradient(135deg, var(--accent), #f06595);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: 'Noto Sans SC', sans-serif;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
+  letter-spacing: 1px;
+}
+
+.btn-add-main:hover { opacity: 0.9; transform: translateY(-1px); }
+.btn-add-main:active { transform: translateY(0); }
+
+/* ── MAIN CONTENT ── */
+#main {
+  margin-left: var(--sidebar-w);
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── TOPBAR ── */
+#topbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(15,15,19,0.85);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 28px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.topbar-title {
+  font-family: 'Noto Serif SC', serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.search-wrap {
+  flex: 1;
+  max-width: 400px;
+  position: relative;
+}
+
+.search-wrap input {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 14px 9px 38px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: 'Noto Sans SC', sans-serif;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.search-wrap input:focus { border-color: var(--accent); }
+.search-wrap input::placeholder { color: var(--text-dim); }
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+.sort-select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 14px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: 'Noto Sans SC', sans-serif;
+  outline: none;
+  cursor: pointer;
+}
+
+.sort-select option { background: var(--surface2); }
+
+.view-toggle {
+  display: flex;
+  gap: 4px;
+  background: var(--surface2);
+  border-radius: 8px;
+  padding: 3px;
+}
+
+.view-btn {
+  padding: 5px 9px;
+  border-radius: 6px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.15s;
+}
+
+.view-btn.active { background: var(--accent); color: white; }
+
+/* ── CARD GRID ── */
+#content { padding: 28px; }
+
+.section-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.section-title {
+  font-family: 'Noto Serif SC', serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.section-count {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.cards-grid.list-view {
+  grid-template-columns: 1fr;
+}
+
+/* ── CARD ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+  position: relative;
+  animation: fadeUp 0.3s ease both;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.4);
+  border-color: rgba(255,255,255,0.15);
+}
+
+.card-cover {
+  width: 100%;
+  aspect-ratio: 2/3;
+  object-fit: cover;
+  display: block;
+  background: var(--surface2);
+}
+
+.card-cover-placeholder {
+  width: 100%;
+  aspect-ratio: 2/3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface2);
+  gap: 8px;
+}
+
+.placeholder-icon { font-size: 36px; opacity: 0.4; }
+.placeholder-text { font-size: 10px; color: var(--text-dim); letter-spacing: 1px; }
+
+.card-accent {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+}
+
+.card-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.status-badge {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 100px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.status-todo     { background: rgba(116,143,252,0.2); color: var(--status-todo); }
+.status-watching { background: rgba(255,169,77,0.2);  color: var(--status-watching); }
+.status-done     { background: rgba(81,207,102,0.2);  color: var(--status-done); }
+
+.card-stars {
+  display: flex;
+  gap: 1px;
+  font-size: 11px;
+}
+
+.star-filled { color: #ffd43b; }
+.star-empty  { color: var(--text-dim); }
+
+.card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tag-chip {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--surface3);
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+}
+
+.card-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.card-progress-bar {
+  flex: 1;
+  height: 3px;
+  background: var(--surface3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.card-progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--accent), #f06595);
+}
+
+.card-progress-text {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-family: 'Space Mono', monospace;
+  flex-shrink: 0;
+}
+
+/* ── LIST VIEW ── */
+.cards-grid.list-view .card {
+  display: grid;
+  grid-template-columns: 60px 1fr;
+}
+
+.cards-grid.list-view .card-cover,
+.cards-grid.list-view .card-cover-placeholder {
+  aspect-ratio: unset;
+  height: 90px;
+  border-radius: 0;
+}
+
+.cards-grid.list-view .card-accent {
+  height: 100%;
+  width: 3px;
+  right: unset;
+}
+
+/* ── EMPTY STATE ── */
+.empty-state {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 80px 40px;
+  color: var(--text-muted);
+}
+
+.empty-emoji { font-size: 64px; margin-bottom: 16px; }
+.empty-title { font-size: 18px; font-weight: 600; margin-bottom: 8px; color: var(--text); }
+.empty-sub   { font-size: 13px; color: var(--text-muted); }
+
+/* ── MODAL BACKDROP ── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(8px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: fadeIn 0.2s;
+}
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: slideUp 0.25s ease;
+  position: relative;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(24px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.modal-header {
+  padding: 24px 24px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-title {
+  font-family: 'Noto Serif SC', serif;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.modal-close {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: var(--surface2);
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.modal-close:hover { background: var(--surface3); color: var(--text); }
+
+.modal-body { padding: 20px 24px 24px; }
+
+/* ── FORM ── */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.form-full  { grid-column: 1 / -1; }
+
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+
+.form-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.form-input, .form-select, .form-textarea {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: 'Noto Sans SC', sans-serif;
+  outline: none;
+  transition: border-color 0.2s;
+  width: 100%;
+}
+
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+  border-color: var(--accent);
+}
+
+.form-select option { background: var(--surface2); }
+
+.form-textarea {
+  resize: vertical;
+  min-height: 90px;
+}
+
+/* ── STAR RATING ── */
+.star-rating {
+  display: flex;
+  gap: 4px;
+}
+
+.star-rating .star {
+  font-size: 24px;
+  cursor: pointer;
+  transition: transform 0.1s;
+  color: var(--surface3);
+}
+
+.star-rating .star.filled { color: #ffd43b; }
+.star-rating .star:hover { transform: scale(1.2); }
+
+/* ── COVER UPLOAD ── */
+.cover-upload-area {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-sm);
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.cover-upload-area:hover { border-color: var(--accent); }
+
+.cover-upload-area input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.cover-preview {
+  width: 100%;
+  max-height: 200px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  margin-top: 8px;
+  display: none;
+}
+
+.cover-preview.show { display: block; }
+
+.upload-icon { font-size: 28px; color: var(--text-dim); }
+.upload-text { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+/* ── TAGS INPUT ── */
+.tags-input-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  min-height: 44px;
+  align-items: center;
+  cursor: text;
+  transition: border-color 0.2s;
+}
+
+.tags-input-wrap:focus-within { border-color: var(--accent); }
+
+.tag-item {
+  background: var(--accent);
+  color: white;
+  font-size: 11px;
+  padding: 2px 8px 2px 8px;
+  border-radius: 100px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tag-remove {
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0.8;
+}
+
+.tag-remove:hover { opacity: 1; }
+
+.tags-input-wrap input {
+  border: none;
+  background: none;
+  outline: none;
+  color: var(--text);
+  font-size: 13px;
+  font-family: 'Noto Sans SC', sans-serif;
+  flex: 1;
+  min-width: 60px;
+}
+
+/* ── PROGRESS INPUT ── */
+.progress-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.progress-row input[type="number"] {
+  width: 70px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  text-align: center;
+}
+
+.progress-sep { color: var(--text-dim); font-size: 13px; }
+
+/* ── MODAL ACTIONS ── */
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.btn {
+  padding: 10px 20px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'Noto Sans SC', sans-serif;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: none;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent), #f06595);
+  color: white;
+}
+
+.btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+
+.btn-ghost {
+  background: var(--surface2);
+  color: var(--text-muted);
+}
+
+.btn-ghost:hover { background: var(--surface3); color: var(--text); }
+
+.btn-danger {
+  background: rgba(255,107,107,0.15);
+  color: #ff6b6b;
+}
+
+.btn-danger:hover { background: rgba(255,107,107,0.25); }
+
+/* ── DETAIL MODAL ── */
+.detail-cover-row {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.detail-cover {
+  width: 120px;
+  min-width: 120px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface2);
+}
+
+.detail-cover img {
+  width: 100%;
+  aspect-ratio: 2/3;
+  object-fit: cover;
+  display: block;
+}
+
+.detail-cover-ph {
+  width: 100%;
+  aspect-ratio: 2/3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+}
+
+.detail-info { flex: 1; min-width: 0; }
+
+.detail-title {
+  font-family: 'Noto Serif SC', serif;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.4;
+  margin-bottom: 10px;
+}
+
+.detail-meta-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detail-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.detail-row-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  width: 40px;
+  flex-shrink: 0;
+}
+
+.detail-stars { display: flex; gap: 2px; font-size: 16px; }
+
+.detail-review {
+  background: var(--surface2);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.7;
+  margin-top: 8px;
+  white-space: pre-wrap;
+}
+
+.detail-review-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  margin-top: 14px;
+}
+
+.share-section {
+  margin-top: 16px;
+  padding: 14px;
+  background: var(--surface2);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.share-url {
+  flex: 1;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: 'Space Mono', monospace;
+  word-break: break-all;
+}
+
+.btn-copy {
+  padding: 6px 14px;
+  background: var(--surface3);
+  border: none;
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 11px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.btn-copy:hover { background: var(--accent); color: white; }
+
+/* ── TOAST ── */
+.toast {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  background: var(--surface3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 18px;
+  font-size: 13px;
+  color: var(--text);
+  z-index: 999;
+  animation: toastIn 0.25s ease;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+@keyframes toastIn {
+  from { transform: translateY(12px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+/* ── SHARE VIEW ── */
+#share-banner {
+  display: none;
+  background: linear-gradient(90deg, var(--accent), #f06595);
+  padding: 10px 24px;
+  font-size: 13px;
+  color: white;
+  text-align: center;
+}
+
+.color-bar-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 16px;
+}
+
+.color-swatch {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.1s;
+  border: 2px solid transparent;
+}
+
+.color-swatch:hover { transform: scale(1.2); }
+.color-swatch.selected { border-color: white; }
+
+.subcat-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-left: 6px;
+}
+</style>
+</head>
+<body>
+
+<div id="share-banner">📖 正在查看分享内容（只读模式）</div>
+
+<div id="app">
+  <!-- SIDEBAR -->
+  <nav id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-title">观单</div>
+      <div class="logo-sub">WATCHLIST</div>
+    </div>
+
+    <div class="sidebar-section">状态</div>
+    <div class="status-filters">
+      <button class="status-btn active" data-status="all" onclick="filterStatus('all',this)">
+        <span class="status-dot" style="background:var(--text-muted)"></span>全部
+      </button>
+      <button class="status-btn" data-status="todo" onclick="filterStatus('todo',this)">
+        <span class="status-dot" style="background:var(--status-todo)"></span>待看
+      </button>
+      <button class="status-btn" data-status="watching" onclick="filterStatus('watching',this)">
+        <span class="status-dot" style="background:var(--status-watching)"></span>正在看
+      </button>
+      <button class="status-btn" data-status="done" onclick="filterStatus('done',this)">
+        <span class="status-dot" style="background:var(--status-done)"></span>已看完
+      </button>
+    </div>
+
+    <div class="sidebar-section">分类</div>
+    <div class="tree-menu" id="treeMenu"></div>
+
+    <div class="sidebar-add">
+      <button class="btn-add-main" onclick="openAddModal()">＋ 添加作品</button>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <div id="main">
+    <div id="share-banner-inner"></div>
+    <div id="topbar">
+      <div class="topbar-title" id="pageTitle">全部</div>
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="searchInput" placeholder="搜索作品名称、标签…" oninput="renderCards()">
+      </div>
+      <select class="sort-select" id="sortSelect" onchange="renderCards()">
+        <option value="addedDesc">最新添加</option>
+        <option value="addedAsc">最早添加</option>
+        <option value="ratingDesc">评分最高</option>
+        <option value="ratingAsc">评分最低</option>
+        <option value="titleAZ">名称 A→Z</option>
+      </select>
+      <div class="view-toggle">
+        <button class="view-btn active" id="gridBtn" onclick="setView('grid')">⊞</button>
+        <button class="view-btn" id="listBtn" onclick="setView('list')">☰</button>
+      </div>
+    </div>
+    <div id="content">
+      <div class="section-header">
+        <span class="section-title" id="sectionTitle">全部作品</span>
+        <span class="section-count" id="sectionCount">0 部</span>
+      </div>
+      <div class="cards-grid" id="cardsGrid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── ADD/EDIT MODAL ── -->
+<div class="modal-backdrop" id="addModal" style="display:none" onclick="closeOnBackdrop(event,'addModal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">添加作品</div>
+      <button class="modal-close" onclick="closeModal('addModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <!-- Title -->
+        <div class="form-group form-full">
+          <label class="form-label">作品名称 *</label>
+          <input class="form-input" id="f-title" type="text" placeholder="输入作品名称…">
+        </div>
+        <!-- Category -->
+        <div class="form-group">
+          <label class="form-label">大类</label>
+          <select class="form-select" id="f-category" onchange="updateSubcats()">
+            <option value="tv">电视剧</option>
+            <option value="movie">电影</option>
+            <option value="anime">动漫</option>
+            <option value="manga">漫画</option>
+            <option value="book">书籍</option>
+            <option value="article">文章</option>
+            <option value="video">视频</option>
+          </select>
+        </div>
+        <!-- Subcategory -->
+        <div class="form-group">
+          <label class="form-label">子分类</label>
+          <select class="form-select" id="f-subcat"></select>
+        </div>
+        <!-- Status -->
+        <div class="form-group">
+          <label class="form-label">状态</label>
+          <select class="form-select" id="f-status">
+            <option value="todo">待看</option>
+            <option value="watching">正在看</option>
+            <option value="done">已看完</option>
+          </select>
+        </div>
+        <!-- Rating -->
+        <div class="form-group">
+          <label class="form-label">评分</label>
+          <div class="star-rating" id="starRating">
+            <span class="star" data-v="1" onclick="setRating(1)">★</span>
+            <span class="star" data-v="2" onclick="setRating(2)">★</span>
+            <span class="star" data-v="3" onclick="setRating(3)">★</span>
+            <span class="star" data-v="4" onclick="setRating(4)">★</span>
+            <span class="star" data-v="5" onclick="setRating(5)">★</span>
+          </div>
+        </div>
+        <!-- Progress -->
+        <div class="form-group form-full">
+          <label class="form-label">进度（集/章/页）</label>
+          <div class="progress-row">
+            <input type="number" id="f-progress-cur" placeholder="当前" min="0">
+            <span class="progress-sep">/</span>
+            <input type="number" id="f-progress-total" placeholder="总计" min="0">
+            <input class="form-input" id="f-progress-unit" type="text" placeholder="单位（集/章/页）" style="max-width:120px">
+          </div>
+        </div>
+        <!-- Tags -->
+        <div class="form-group form-full">
+          <label class="form-label">标签（回车添加）</label>
+          <div class="tags-input-wrap" id="tagsWrap" onclick="document.getElementById('tagsInput').focus()">
+            <input type="text" id="tagsInput" placeholder="输入标签…" onkeydown="handleTagInput(event)">
+          </div>
+        </div>
+        <!-- Cover -->
+        <div class="form-group form-full">
+          <label class="form-label">封面图片</label>
+          <div class="cover-upload-area" id="coverArea">
+            <input type="file" accept="image/*" id="coverFile" onchange="handleCoverUpload(event)">
+            <div class="upload-icon">🖼</div>
+            <div class="upload-text">点击上传封面图片</div>
+            <img class="cover-preview" id="coverPreview">
+          </div>
+        </div>
+        <!-- Notes -->
+        <div class="form-group form-full">
+          <label class="form-label">评价 / 观后感</label>
+          <textarea class="form-textarea" id="f-notes" placeholder="写下你的想法、剧评、读后感…"></textarea>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-danger" id="deleteBtn" style="display:none;margin-right:auto" onclick="deleteItem()">删除</button>
+        <button class="btn btn-ghost" onclick="closeModal('addModal')">取消</button>
+        <button class="btn btn-primary" onclick="saveItem()">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── DETAIL MODAL ── -->
+<div class="modal-backdrop" id="detailModal" style="display:none" onclick="closeOnBackdrop(event,'detailModal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div class="modal-title">详情</div>
+      <button class="modal-close" onclick="closeModal('detailModal')">✕</button>
+    </div>
+    <div class="modal-body" id="detailBody"></div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+//  DATA MODEL
+// ══════════════════════════════════════════
+const CATS = {
+  tv:      { label:'电视剧', icon:'📺', color:'var(--cat-tv)',      subs:['国产剧','韩剧','美剧','日剧','英剧','泰剧','其他'] },
+  movie:   { label:'电影',   icon:'🎬', color:'var(--cat-movie)',   subs:['国产','好莱坞','欧洲','日韩','动画电影','纪录片','其他'] },
+  anime:   { label:'动漫',   icon:'🌸', color:'var(--cat-anime)',   subs:['日漫','国漫','美漫动画','其他'] },
+  manga:   { label:'漫画',   icon:'📖', color:'var(--cat-manga)',   subs:['日漫','国漫','韩漫','欧美漫','其他'] },
+  book:    { label:'书籍',   icon:'📚', color:'var(--cat-book)',    subs:['小说','非虚构','科幻','历史','经济','心理','其他'] },
+  article: { label:'文章',   icon:'📝', color:'var(--cat-article)', subs:['科技','文化','社会','学术','其他'] },
+  video:   { label:'视频',   icon:'▶️',  color:'var(--cat-video)',   subs:['纪录片','Vlog','教程','短片','其他'] },
+};
+
+const STATUS_LABELS = { todo:'待看', watching:'正在看', done:'已看完' };
+const STATUS_CLASSES = { todo:'status-todo', watching:'status-watching', done:'status-done' };
+
+let db = [];
+let currentRating = 0;
+let currentTags = [];
+let editingId = null;
+let currentCoverData = null;
+let filterStatusVal = 'all';
+let filterCat = null;
+let filterSub = null;
+let viewMode = 'grid';
+let shareMode = false;
+
+// ── STORAGE ──
+const STORAGE_KEY = 'watchlist_v2';
+
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+}
+
+function load() {
+  try {
+    const d = localStorage.getItem(STORAGE_KEY);
+    db = d ? JSON.parse(d) : [];
+  } catch(e) { db = []; }
+}
+
+// ── ID GEN ──
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+// ══════════════════════════════════════════
+//  SHARE / URL PARAM
+// ══════════════════════════════════════════
+function checkShareParam() {
+  const params = new URLSearchParams(location.search);
+  const shareData = params.get('share');
+  if (!shareData) return;
+  try {
+    const item = JSON.parse(decodeURIComponent(atob(shareData)));
+    shareMode = true;
+    document.getElementById('share-banner').style.display = 'block';
+    // Show detail directly
+    setTimeout(() => openDetail(item), 300);
+  } catch(e) {}
+}
+
+function generateShareURL(item) {
+  const encoded = btoa(encodeURIComponent(JSON.stringify({...item, coverData: item.coverData || null})));
+  return location.href.split('?')[0] + '?share=' + encoded;
+}
+
+// ══════════════════════════════════════════
+//  RENDER SIDEBAR TREE
+// ══════════════════════════════════════════
+function buildTree() {
+  const menu = document.getElementById('treeMenu');
+  menu.innerHTML = '';
+
+  // "全部" option
+  const allDiv = document.createElement('div');
+  allDiv.className = 'tree-cat-header' + (filterCat===null?' active':'');
+  allDiv.style.marginBottom='4px';
+  allDiv.innerHTML = `<span class="cat-icon" style="background:var(--surface3)">🌐</span>
+    <span class="cat-label">全部</span>
+    <span class="cat-count">${db.length}</span>`;
+  allDiv.onclick = () => { filterCat=null; filterSub=null; updatePageTitle(); renderCards(); buildTree(); };
+  menu.appendChild(allDiv);
+
+  Object.entries(CATS).forEach(([key, cat]) => {
+    const catItems = db.filter(i=>i.category===key);
+    const catDiv = document.createElement('div');
+    catDiv.className = 'tree-category';
+
+    const isOpen = filterCat === key;
+    catDiv.innerHTML = `
+      <div class="tree-cat-header${filterCat===key && !filterSub?' active':''}" onclick="toggleCat('${key}',this)" data-cat="${key}">
+        <span class="cat-icon" style="background:${cat.color}22;color:${cat.color}">${cat.icon}</span>
+        <span class="cat-label">${cat.label}</span>
+        <span class="cat-count">${catItems.length}</span>
+        <span class="tree-chevron${isOpen?' open':''}">▶</span>
+      </div>
+      <div class="tree-sub${isOpen?' open':''}" id="sub-${key}">
+        ${cat.subs.map(sub => {
+          const subCount = db.filter(i=>i.category===key && i.subcat===sub).length;
+          return `<div class="tree-sub-item${filterCat===key && filterSub===sub?' active':''}" 
+            onclick="selectSub('${key}','${sub}',this)">
+            ${sub}
+            <span class="sub-count">${subCount||''}</span>
+          </div>`;
+        }).join('')}
+      </div>`;
+    menu.appendChild(catDiv);
+  });
+}
+
+function toggleCat(key, el) {
+  const sub = document.getElementById('sub-'+key);
+  const chevron = el.querySelector('.tree-chevron');
+  const isOpen = sub.classList.contains('open');
+
+  if (!isOpen) {
+    sub.classList.add('open');
+    chevron.classList.add('open');
+    filterCat = key;
+    filterSub = null;
+  } else {
+    if (filterCat === key && !filterSub) {
+      sub.classList.remove('open');
+      chevron.classList.remove('open');
+      filterCat = null;
+    } else {
+      filterCat = key;
+      filterSub = null;
+    }
+  }
+  updatePageTitle();
+  renderCards();
+  buildTree();
+}
+
+function selectSub(cat, sub, el) {
+  filterCat = cat;
+  filterSub = sub;
+  updatePageTitle();
+  renderCards();
+  buildTree();
+}
+
+function filterStatus(val, btn) {
+  filterStatusVal = val;
+  document.querySelectorAll('.status-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderCards();
+}
+
+function setView(v) {
+  viewMode = v;
+  document.getElementById('gridBtn').classList.toggle('active', v==='grid');
+  document.getElementById('listBtn').classList.toggle('active', v==='list');
+  const grid = document.getElementById('cardsGrid');
+  grid.classList.toggle('list-view', v==='list');
+}
+
+function updatePageTitle() {
+  let title = '全部';
+  if (filterCat) {
+    title = CATS[filterCat].label;
+    if (filterSub) title += ' · ' + filterSub;
+  }
+  document.getElementById('pageTitle').textContent = title;
+  document.getElementById('sectionTitle').textContent = title + '作品';
+}
+
+// ══════════════════════════════════════════
+//  RENDER CARDS
+// ══════════════════════════════════════════
+function renderCards() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const sort = document.getElementById('sortSelect').value;
+
+  let items = db.filter(item => {
+    if (filterStatusVal !== 'all' && item.status !== filterStatusVal) return false;
+    if (filterCat && item.category !== filterCat) return false;
+    if (filterSub && item.subcat !== filterSub) return false;
+    if (q) {
+      const hay = (item.title + ' ' + (item.tags||[]).join(' ') + ' ' + (item.notes||'')).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  // Sort
+  items.sort((a,b) => {
+    if (sort==='addedDesc') return b.added - a.added;
+    if (sort==='addedAsc')  return a.added - b.added;
+    if (sort==='ratingDesc') return (b.rating||0) - (a.rating||0);
+    if (sort==='ratingAsc')  return (a.rating||0) - (b.rating||0);
+    if (sort==='titleAZ')   return a.title.localeCompare(b.title);
+    return 0;
+  });
+
+  document.getElementById('sectionCount').textContent = items.length + ' 部';
+
+  const grid = document.getElementById('cardsGrid');
+  if (items.length === 0) {
+    grid.innerHTML = `<div class="empty-state">
+      <div class="empty-emoji">📭</div>
+      <div class="empty-title">这里空空如也</div>
+      <div class="empty-sub">点击「添加作品」开始记录吧！</div>
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = items.map((item, i) => renderCard(item, i)).join('');
+}
+
+function renderCard(item, i) {
+  const cat = CATS[item.category] || CATS.tv;
+  const stars = renderStars(item.rating);
+  const tags  = (item.tags||[]).slice(0,3).map(t=>`<span class="tag-chip">${t}</span>`).join('');
+
+  let progress = '';
+  if (item.progressCur != null && item.progressTotal) {
+    const pct = Math.min(100, Math.round((item.progressCur/item.progressTotal)*100));
+    progress = `<div class="card-progress-wrap">
+      <div class="card-progress-bar"><div class="card-progress-fill" style="width:${pct}%"></div></div>
+      <span class="card-progress-text">${item.progressCur}/${item.progressTotal}${item.progressUnit||''}</span>
+    </div>`;
+  } else if (item.progressCur) {
+    progress = `<div class="card-progress-text" style="font-size:11px;color:var(--text-dim)">进度 ${item.progressCur}${item.progressUnit||''}</div>`;
+  }
+
+  let coverHtml;
+  if (item.coverData) {
+    coverHtml = `<img class="card-cover" src="${item.coverData}" loading="lazy">`;
+  } else {
+    coverHtml = `<div class="card-cover-placeholder">
+      <span class="placeholder-icon">${cat.icon}</span>
+      <span class="placeholder-text">${cat.label}</span>
+    </div>`;
+  }
+
+  return `<div class="card" style="animation-delay:${i*30}ms" onclick="openDetail(db.find(x=>x.id==='${item.id}'))">
+    <div class="card-accent" style="background:${cat.color}"></div>
+    ${coverHtml}
+    <div class="card-body">
+      <div class="card-title">${escHtml(item.title)}</div>
+      <div class="card-meta">
+        <span class="status-badge ${STATUS_CLASSES[item.status]}">${STATUS_LABELS[item.status]}</span>
+        ${item.subcat ? `<span style="font-size:10px;color:var(--text-dim)">${item.subcat}</span>` : ''}
+      </div>
+      <div class="card-stars">${stars}</div>
+      ${tags ? `<div class="card-tags">${tags}</div>` : ''}
+      ${progress}
+    </div>
+  </div>`;
+}
+
+function renderStars(r) {
+  let out = '';
+  for (let i=1;i<=5;i++) {
+    out += `<span class="${i<=(r||0)?'star-filled':'star-empty'}">★</span>`;
+  }
+  return out;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ══════════════════════════════════════════
+//  DETAIL MODAL
+// ══════════════════════════════════════════
+function openDetail(item) {
+  if (!item) return;
+  const cat = CATS[item.category] || CATS.tv;
+  const stars = renderStars(item.rating);
+  const tags = (item.tags||[]).map(t=>`<span class="tag-chip">${escHtml(t)}</span>`).join('');
+
+  let progress = '';
+  if (item.progressCur != null) {
+    let p = `${item.progressCur}`;
+    if (item.progressTotal) p += `/${item.progressTotal}`;
+    if (item.progressUnit) p += ` ${item.progressUnit}`;
+    progress = `<div class="detail-row">
+      <span class="detail-row-label">进度</span>
+      <span style="font-size:13px">${p}</span>
+    </div>`;
+  }
+
+  let coverHtml;
+  if (item.coverData) {
+    coverHtml = `<img src="${item.coverData}" style="width:100%;display:block">`;
+  } else {
+    coverHtml = `<div class="detail-cover-ph">${cat.icon}</div>`;
+  }
+
+  const shareURL = generateShareURL(item);
+
+  document.getElementById('detailBody').innerHTML = `
+    <div class="detail-cover-row">
+      <div class="detail-cover" style="border-top:3px solid ${cat.color}">${coverHtml}</div>
+      <div class="detail-info">
+        <div class="detail-title">${escHtml(item.title)}</div>
+        <div class="detail-meta-grid">
+          <div class="detail-row">
+            <span class="detail-row-label">类型</span>
+            <span style="font-size:13px">${cat.label}${item.subcat?' · '+item.subcat:''}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-row-label">状态</span>
+            <span class="status-badge ${STATUS_CLASSES[item.status]}">${STATUS_LABELS[item.status]}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-row-label">评分</span>
+            <div class="detail-stars">${stars}</div>
+          </div>
+          ${progress}
+          ${tags ? `<div class="detail-row" style="align-items:flex-start">
+            <span class="detail-row-label">标签</span>
+            <div style="display:flex;flex-wrap:wrap;gap:4px">${tags}</div>
+          </div>` : ''}
+        </div>
+      </div>
+    </div>
+    ${item.notes ? `
+      <div class="detail-review-label">评价 / 观后感</div>
+      <div class="detail-review">${escHtml(item.notes)}</div>
+    ` : ''}
+    <div class="detail-review-label">分享此作品</div>
+    <div class="share-section">
+      <div class="share-url" id="shareUrlText">${shareURL}</div>
+      <button class="btn-copy" onclick="copyShare('${item.id}')">复制链接</button>
+    </div>
+    ${!shareMode ? `<div class="modal-actions" style="margin-top:16px">
+      <button class="btn btn-ghost" onclick="closeModal('detailModal');openEditModal('${item.id}')">✏️ 编辑</button>
+    </div>` : ''}
+  `;
+  document.getElementById('detailModal').style.display = 'flex';
+}
+
+function copyShare(itemId) {
+  const item = db.find(x=>x.id===itemId);
+  if (!item) return;
+  const url = generateShareURL(item);
+  navigator.clipboard.writeText(url).then(()=>toast('链接已复制！'));
+}
+
+// ══════════════════════════════════════════
+//  ADD / EDIT MODAL
+// ══════════════════════════════════════════
+function openAddModal() {
+  editingId = null;
+  currentRating = 0;
+  currentTags = [];
+  currentCoverData = null;
+
+  document.getElementById('modalTitle').textContent = '添加作品';
+  document.getElementById('f-title').value = '';
+  document.getElementById('f-category').value = 'tv';
+  document.getElementById('f-status').value = 'todo';
+  document.getElementById('f-notes').value = '';
+  document.getElementById('f-progress-cur').value = '';
+  document.getElementById('f-progress-total').value = '';
+  document.getElementById('f-progress-unit').value = '';
+  document.getElementById('deleteBtn').style.display = 'none';
+  document.getElementById('coverPreview').classList.remove('show');
+  document.getElementById('coverPreview').src = '';
+
+  updateSubcats();
+  renderTagChips();
+  updateStars();
+  document.getElementById('addModal').style.display = 'flex';
+  setTimeout(()=>document.getElementById('f-title').focus(), 100);
+}
+
+function openEditModal(id) {
+  const item = db.find(x=>x.id===id);
+  if (!item) return;
+  editingId = id;
+  currentRating = item.rating || 0;
+  currentTags = [...(item.tags||[])];
+  currentCoverData = item.coverData || null;
+
+  document.getElementById('modalTitle').textContent = '编辑作品';
+  document.getElementById('f-title').value = item.title;
+  document.getElementById('f-category').value = item.category;
+  document.getElementById('f-status').value = item.status;
+  document.getElementById('f-notes').value = item.notes || '';
+  document.getElementById('f-progress-cur').value = item.progressCur != null ? item.progressCur : '';
+  document.getElementById('f-progress-total').value = item.progressTotal != null ? item.progressTotal : '';
+  document.getElementById('f-progress-unit').value = item.progressUnit || '';
+  document.getElementById('deleteBtn').style.display = 'inline-flex';
+
+  if (currentCoverData) {
+    const prev = document.getElementById('coverPreview');
+    prev.src = currentCoverData;
+    prev.classList.add('show');
+  } else {
+    document.getElementById('coverPreview').classList.remove('show');
+  }
+
+  updateSubcats(item.subcat);
+  renderTagChips();
+  updateStars();
+  document.getElementById('addModal').style.display = 'flex';
+}
+
+function updateSubcats(selected) {
+  const cat = document.getElementById('f-category').value;
+  const subs = CATS[cat]?.subs || [];
+  const sel = document.getElementById('f-subcat');
+  sel.innerHTML = subs.map(s=>`<option value="${s}"${s===selected?' selected':''}>${s}</option>`).join('');
+}
+
+function setRating(n) {
+  currentRating = (currentRating === n) ? 0 : n;
+  updateStars();
+}
+
+function updateStars() {
+  document.querySelectorAll('#starRating .star').forEach(s => {
+    s.classList.toggle('filled', parseInt(s.dataset.v) <= currentRating);
+  });
+}
+
+function handleTagInput(e) {
+  if (e.key === 'Enter' || e.key === ',') {
+    e.preventDefault();
+    const val = e.target.value.trim();
+    if (val && !currentTags.includes(val)) {
+      currentTags.push(val);
+      renderTagChips();
+    }
+    e.target.value = '';
+  } else if (e.key === 'Backspace' && !e.target.value && currentTags.length) {
+    currentTags.pop();
+    renderTagChips();
+  }
+}
+
+function renderTagChips() {
+  const wrap = document.getElementById('tagsWrap');
+  const input = document.getElementById('tagsInput');
+  wrap.innerHTML = '';
+  currentTags.forEach((tag, i) => {
+    const chip = document.createElement('span');
+    chip.className = 'tag-item';
+    chip.innerHTML = `${escHtml(tag)}<span class="tag-remove" onclick="removeTag(${i})">×</span>`;
+    wrap.appendChild(chip);
+  });
+  wrap.appendChild(input);
+}
+
+function removeTag(i) {
+  currentTags.splice(i, 1);
+  renderTagChips();
+}
+
+function handleCoverUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    currentCoverData = ev.target.result;
+    const prev = document.getElementById('coverPreview');
+    prev.src = currentCoverData;
+    prev.classList.add('show');
+  };
+  reader.readAsDataURL(file);
+}
+
+function saveItem() {
+  const title = document.getElementById('f-title').value.trim();
+  if (!title) { toast('请输入作品名称！'); return; }
+
+  const item = {
+    id: editingId || uid(),
+    title,
+    category: document.getElementById('f-category').value,
+    subcat:   document.getElementById('f-subcat').value,
+    status:   document.getElementById('f-status').value,
+    rating:   currentRating,
+    tags:     [...currentTags],
+    notes:    document.getElementById('f-notes').value.trim(),
+    coverData: currentCoverData,
+    progressCur:   parseNum(document.getElementById('f-progress-cur').value),
+    progressTotal: parseNum(document.getElementById('f-progress-total').value),
+    progressUnit:  document.getElementById('f-progress-unit').value.trim(),
+    added: editingId ? (db.find(x=>x.id===editingId)?.added || Date.now()) : Date.now(),
+    updated: Date.now(),
+  };
+
+  if (editingId) {
+    const idx = db.findIndex(x=>x.id===editingId);
+    if (idx > -1) db[idx] = item;
+  } else {
+    db.unshift(item);
+  }
+
+  save();
+  closeModal('addModal');
+  renderCards();
+  buildTree();
+  toast(editingId ? '已更新！' : '添加成功！');
+}
+
+function parseNum(v) {
+  const n = parseInt(v);
+  return isNaN(n) ? null : n;
+}
+
+function deleteItem() {
+  if (!editingId) return;
+  if (!confirm('确定要删除这部作品吗？')) return;
+  db = db.filter(x=>x.id!==editingId);
+  save();
+  closeModal('addModal');
+  renderCards();
+  buildTree();
+  toast('已删除');
+}
+
+// ══════════════════════════════════════════
+//  MODAL HELPERS
+// ══════════════════════════════════════════
+function closeModal(id) {
+  document.getElementById(id).style.display = 'none';
+}
+
+function closeOnBackdrop(e, id) {
+  if (e.target === document.getElementById(id)) closeModal(id);
+}
+
+// ══════════════════════════════════════════
+//  TOAST
+// ══════════════════════════════════════════
+function toast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity 0.3s'; setTimeout(()=>t.remove(), 300); }, 2000);
+}
+
+// ══════════════════════════════════════════
+//  KEYBOARD
+// ══════════════════════════════════════════
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    ['addModal','detailModal'].forEach(id => {
+      if (document.getElementById(id).style.display !== 'none') closeModal(id);
+    });
+  }
+  if ((e.ctrlKey||e.metaKey) && e.key==='k') {
+    e.preventDefault();
+    document.getElementById('searchInput').focus();
+  }
+});
+
+// ══════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════
+load();
+updateSubcats();
+buildTree();
+renderCards();
+checkShareParam();
+</script>
+</body>
+</html>
