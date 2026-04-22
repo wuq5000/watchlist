@@ -981,11 +981,201 @@ body::before {
   color: var(--text-dim);
   margin-left: 6px;
 }
+
+/* ── MOBILE BOTTOM NAV ── */
+#bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: 64px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  z-index: 100;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+#bottom-nav::-webkit-scrollbar { display: none; }
+
+.bottom-nav-inner {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+  min-width: max-content;
+  padding: 0 4px;
+}
+
+.bnav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 0 14px;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-family: 'Noto Sans SC', sans-serif;
+  transition: color 0.15s;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.bnav-item.active { color: var(--text); }
+
+.bnav-item.active::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 50%;
+  transform: translateX(-50%);
+  width: 28px; height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--accent);
+}
+
+.bnav-icon { font-size: 18px; line-height: 1; }
+.bnav-label { font-size: 10px; font-weight: 500; white-space: nowrap; }
+
+.bnav-add {
+  background: linear-gradient(135deg, var(--accent), #f06595) !important;
+  color: white !important;
+  border-radius: 14px;
+  margin: 10px 6px;
+  padding: 0 16px !important;
+  font-size: 20px !important;
+  min-width: 48px;
+}
+
+.bnav-add::after { display: none !important; }
+
+/* 底部导航子菜单抽屉 */
+#subnav-drawer {
+  display: none;
+  position: fixed;
+  bottom: 64px; left: 0; right: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  z-index: 99;
+  padding: 12px 16px 16px;
+  animation: drawerUp 0.22s ease;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+@keyframes drawerUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+#subnav-drawer.open { display: block; }
+
+.drawer-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.drawer-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.drawer-chip {
+  padding: 7px 14px;
+  border-radius: 100px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: 'Noto Sans SC', sans-serif;
+}
+
+.drawer-chip:active,
+.drawer-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+#subnav-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  bottom: 64px;
+  z-index: 98;
+}
+#subnav-overlay.show { display: block; }
+
+@media (max-width: 768px) {
+  #sidebar { display: none; }
+  #main { margin-left: 0; }
+  #bottom-nav { display: block; }
+
+  .hamburger { display: none; }
+
+  #topbar {
+    padding: 10px 14px;
+    gap: 10px;
+  }
+
+  .topbar-title { font-size: 15px; }
+  .sort-select { display: none; }
+  .view-toggle { display: none; }
+  .search-wrap { max-width: unset; }
+
+  #content { padding: 14px 12px 80px; }
+
+  .cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .cards-grid.list-view { grid-template-columns: 1fr; }
+
+  .modal {
+    max-width: 100%;
+    border-radius: 20px 20px 0 0;
+    max-height: 92vh;
+  }
+
+  .modal-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .form-grid { grid-template-columns: 1fr; }
+  .form-full { grid-column: 1; }
+
+  .detail-cover-row { flex-direction: column; }
+  .detail-cover { width: 100%; min-width: unset; }
+  .detail-cover img { aspect-ratio: 16/9; }
+  .detail-cover-ph { aspect-ratio: 16/9; }
+
+  .sidebar-add { display: none; }
+  .section-header { padding: 0 2px; }
+}
 </style>
 </head>
 <body>
 
 <div id="share-banner">📖 正在查看分享内容（只读模式）</div>
+
+<!-- 底部导航子菜单遮罩 -->
+<div id="subnav-overlay" onclick="closeDrawer()"></div>
+<!-- 子分类抽屉 -->
+<div id="subnav-drawer"></div>
+<!-- 底部导航栏 -->
+<nav id="bottom-nav">
+  <div class="bottom-nav-inner" id="bnavInner"></div>
+</nav>
 
 <div id="app">
   <!-- SIDEBAR -->
@@ -1235,7 +1425,7 @@ function buildTree() {
   allDiv.innerHTML = `<span class="cat-icon" style="background:var(--surface3)">🌐</span>
     <span class="cat-label">全部</span>
     <span class="cat-count">${db.length}</span>`;
-  allDiv.onclick = () => { filterCat=null; filterSub=null; updatePageTitle(); renderCards(); buildTree(); };
+  allDiv.onclick = () => { filterCat=null; filterSub=null; updatePageTitle(); renderCards(); buildTree(); if(window.innerWidth<=768) closeSidebar(); };
   menu.appendChild(allDiv);
 
   Object.entries(CATS).forEach(([key, cat]) => {
@@ -1296,6 +1486,7 @@ function selectSub(cat, sub, el) {
   updatePageTitle();
   renderCards();
   buildTree();
+  if (window.innerWidth <= 768) closeSidebar();
 }
 
 function filterStatus(val, btn) {
@@ -1747,11 +1938,109 @@ document.addEventListener('keydown', e => {
 });
 
 // ══════════════════════════════════════════
+//  MOBILE BOTTOM NAV
+// ══════════════════════════════════════════
+function buildBottomNav() {
+  const inner = document.getElementById('bnavInner');
+  if (!inner) return;
+
+  let html = '';
+
+  // 全部
+  html += `<button class="bnav-item${filterCat===null?' active':''}" onclick="bnavSelect(null)">
+    <span class="bnav-icon">🌐</span>
+    <span class="bnav-label">全部</span>
+  </button>`;
+
+  // 各分类
+  Object.entries(CATS).forEach(([key, cat]) => {
+    html += `<button class="bnav-item${filterCat===key?' active':''}" onclick="bnavSelect('${key}')">
+      <span class="bnav-icon">${cat.icon}</span>
+      <span class="bnav-label">${cat.label}</span>
+    </button>`;
+  });
+
+  // 添加按钮
+  html += `<button class="bnav-item bnav-add" onclick="openAddModal()">＋</button>`;
+
+  inner.innerHTML = html;
+}
+
+function bnavSelect(key) {
+  if (key === null) {
+    filterCat = null;
+    filterSub = null;
+    closeDrawer();
+    updatePageTitle();
+    renderCards();
+    buildBottomNav();
+    return;
+  }
+
+  // 如果已经选中同一个分类，切换抽屉
+  if (filterCat === key) {
+    const drawer = document.getElementById('subnav-drawer');
+    if (drawer.classList.contains('open')) { closeDrawer(); return; }
+  }
+
+  filterCat = key;
+  filterSub = null;
+  updatePageTitle();
+  renderCards();
+  buildBottomNav();
+  openDrawer(key);
+}
+
+function openDrawer(key) {
+  const cat = CATS[key];
+  if (!cat) return;
+  const drawer = document.getElementById('subnav-drawer');
+  const overlay = document.getElementById('subnav-overlay');
+
+  const chips = cat.subs.map(sub => {
+    const active = filterSub === sub ? ' active' : '';
+    return `<button class="drawer-chip${active}" onclick="bnavSubSelect('${key}','${sub}')">${sub}</button>`;
+  }).join('');
+
+  drawer.innerHTML = `
+    <div class="drawer-title">${cat.label} · 子分类</div>
+    <div class="drawer-chips">
+      <button class="drawer-chip${!filterSub?' active':''}" onclick="bnavSubSelect('${key}',null)">全部</button>
+      ${chips}
+    </div>`;
+
+  drawer.classList.add('open');
+  overlay.classList.add('show');
+}
+
+function bnavSubSelect(key, sub) {
+  filterCat = key;
+  filterSub = sub;
+  updatePageTitle();
+  renderCards();
+  buildBottomNav();
+  closeDrawer();
+}
+
+function closeDrawer() {
+  document.getElementById('subnav-drawer').classList.remove('open');
+  document.getElementById('subnav-overlay').classList.remove('show');
+}
+
+// ── 旧的侧边栏函数保留空实现，避免报错 ──
+function toggleSidebar() {}
+function closeSidebar() {}
+
+// ── 状态筛选后重建底部导航 ──
+const _origFilterStatus = filterStatus;
+
+// ══════════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════════
 load();
 updateSubcats();
 buildTree();
+buildBottomNav();
 renderCards();
 checkShareParam();
 </script>
