@@ -82,14 +82,58 @@ window.logoutUser = async function() {
 function subscribeToData(uid) {
   if (unsubscribeSnapshot) unsubscribeSnapshot();
   const col = collection(db_f, 'users', uid, 'items');
-  unsubscribeSnapshot = onSnapshot(col, snapshot => {
+  let firstLoad = true;
+  unsubscribeSnapshot = onSnapshot(col, async snapshot => {
     db = [];
     snapshot.forEach(d => db.push(d.data()));
     db.sort((a,b) => (b.added||0) - (a.added||0));
     buildTree();
     buildBottomNav();
     renderCards();
+
+    // 首次加载时检查本地是否有旧数据需要迁移
+    if (firstLoad) {
+      firstLoad = false;
+      await checkLocalMigration(uid, snapshot.size);
+    }
   });
+}
+
+// ── 本地数据迁移 ──
+async function checkLocalMigration(uid, cloudCount) {
+  const STORAGE_KEY = 'watchlist_v2';
+  try {
+    const local = localStorage.getItem(STORAGE_KEY);
+    if (!local) return;
+    const localItems = JSON.parse(local);
+    if (!localItems || localItems.length === 0) return;
+
+    // 云端已有数据就不提示了（避免重复迁移）
+    if (cloudCount > 0) {
+      localStorage.removeItem(STORAGE_KEY);
+      return;
+    }
+
+    // 弹出迁移提示
+    const ok = confirm(`检测到本地有 ${localItems.length} 条旧数据，是否迁移到云端？\n（迁移后多设备都能看到）`);
+    if (!ok) {
+      localStorage.removeItem(STORAGE_KEY);
+      return;
+    }
+
+    toast('迁移中，请稍候…');
+    const batch = writeBatch(db_f);
+    localItems.forEach(item => {
+      if (!item.id) item.id = Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+      const ref = doc(db_f, 'users', uid, 'items', item.id);
+      batch.set(ref, item);
+    });
+    await batch.commit();
+    localStorage.removeItem(STORAGE_KEY);
+    toast(`✅ 已迁移 ${localItems.length} 条数据到云端！`);
+  } catch(e) {
+    console.error('迁移失败', e);
+  }
 }
 
 // Override save/delete to use Firestore
