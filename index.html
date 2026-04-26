@@ -5,6 +5,106 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>观单 · Watchlist</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Space+Mono:wght@400;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<script type="module">
+// ══════════════════════════════════════════
+//  FIREBASE CONFIG
+// ══════════════════════════════════════════
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, collection, doc, getDocs, setDoc, deleteDoc, onSnapshot, writeBatch }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAjiqCBaLTxa7WnoBjmW-aObLaK7lluEJM",
+  authDomain: "watchlist-580a4.firebaseapp.com",
+  projectId: "watchlist-580a4",
+  storageBucket: "watchlist-580a4.firebasestorage.app",
+  messagingSenderId: "802281357810",
+  appId: "1:802281357810:web:a68a82e4312b7008266b6b",
+  measurementId: "G-5QJDZNHQ45"
+};
+
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db_f = getFirestore(app);
+
+let currentUser = null;
+let unsubscribeSnapshot = null;
+
+// ── AUTH STATE ──
+onAuthStateChanged(auth, async user => {
+  currentUser = user;
+  if (user) {
+    showApp(user);
+    subscribeToData(user.uid);
+  } else {
+    showLogin();
+  }
+});
+
+function showLogin() {
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('bottom-nav').style.display = 'none';
+  if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
+}
+
+function showApp(user) {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  // user avatar
+  const av = document.getElementById('userAvatar');
+  if (av) {
+    av.src = user.photoURL || '';
+    av.style.display = user.photoURL ? 'block' : 'none';
+  }
+  const un = document.getElementById('userName');
+  if (un) un.textContent = user.displayName || user.email;
+}
+
+// ── GOOGLE LOGIN ──
+window.loginWithGoogle = async function() {
+  try {
+    const provider = new GoogleAuthProvider();
+    await signInWithPopup(auth, provider);
+  } catch(e) {
+    toast('登录失败：' + e.message);
+  }
+};
+
+window.logoutUser = async function() {
+  if (!confirm('确定要退出登录吗？')) return;
+  await signOut(auth);
+};
+
+// ── FIRESTORE SYNC ──
+function subscribeToData(uid) {
+  if (unsubscribeSnapshot) unsubscribeSnapshot();
+  const col = collection(db_f, 'users', uid, 'items');
+  unsubscribeSnapshot = onSnapshot(col, snapshot => {
+    db = [];
+    snapshot.forEach(d => db.push(d.data()));
+    db.sort((a,b) => (b.added||0) - (a.added||0));
+    buildTree();
+    buildBottomNav();
+    renderCards();
+  });
+}
+
+// Override save/delete to use Firestore
+window._fbSaveItem = async function(item) {
+  if (!currentUser) return;
+  const ref = doc(db_f, 'users', currentUser.uid, 'items', item.id);
+  await setDoc(ref, item);
+};
+
+window._fbDeleteItem = async function(id) {
+  if (!currentUser) return;
+  const ref = doc(db_f, 'users', currentUser.uid, 'items', id);
+  await deleteDoc(ref);
+};
+</script>
 <style>
 :root {
   --bg: #0f0f13;
@@ -219,6 +319,31 @@ body::before {
   color: var(--text-dim);
   font-family: 'Space Mono', monospace;
 }
+
+.sub-delete-btn {
+  opacity: 0;
+  font-size: 14px;
+  color: #ff6b6b;
+  cursor: pointer;
+  padding: 0 2px;
+  transition: opacity 0.15s;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.tree-sub-item:hover .sub-delete-btn { opacity: 1; }
+
+.tree-sub-add {
+  font-size: 11px;
+  color: var(--text-dim);
+  padding: 5px 8px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s;
+  letter-spacing: 0.5px;
+}
+
+.tree-sub-add:hover { color: var(--accent); background: var(--surface2); }
 
 /* ── ADD BTN ── */
 .sidebar-add {
@@ -982,7 +1107,117 @@ body::before {
   margin-left: 6px;
 }
 
-/* ── MOBILE BOTTOM NAV ── */
+/* ── LOGIN SCREEN ── */
+#loginScreen {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 9999;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+}
+
+.login-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: 48px 40px;
+  text-align: center;
+  max-width: 380px;
+  width: 90%;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+}
+
+.login-logo {
+  font-family: 'Noto Serif SC', serif;
+  font-size: 36px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #7c6af7, #f06595, #ffa94d);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 8px;
+}
+
+.login-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 36px;
+  line-height: 1.6;
+}
+
+.btn-google {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 20px;
+  background: white;
+  border: none;
+  border-radius: 12px;
+  color: #333;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: 'Noto Sans SC', sans-serif;
+  cursor: pointer;
+  transition: box-shadow 0.2s, transform 0.1s;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.btn-google:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.3); transform: translateY(-1px); }
+.btn-google:active { transform: translateY(0); }
+
+.google-icon {
+  width: 20px; height: 20px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath fill='%23EA4335' d='M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z'/%3E%3Cpath fill='%234285F4' d='M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z'/%3E%3Cpath fill='%23FBBC05' d='M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z'/%3E%3Cpath fill='%2334A853' d='M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z'/%3E%3C/svg%3E");
+  background-size: contain;
+  background-repeat: no-repeat;
+  flex-shrink: 0;
+}
+
+.login-note {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 20px;
+  line-height: 1.6;
+}
+
+/* ── USER MENU ── */
+.user-menu {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  cursor: pointer;
+  padding: 5px 10px;
+  border-radius: 20px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  transition: background 0.15s;
+}
+
+.user-menu:hover { background: var(--surface3); }
+
+#userAvatar {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+#userName {
+  font-size: 12px;
+  color: var(--text-muted);
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logout-icon { font-size: 13px; color: var(--text-dim); }
 #bottom-nav {
   display: none;
   position: fixed;
@@ -1166,6 +1401,19 @@ body::before {
 </head>
 <body>
 
+<!-- 登录界面 -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">观单</div>
+    <div class="login-sub">你的多媒体待看清单<br>登录后数据云端同步，多设备通用</div>
+    <button class="btn-google" onclick="loginWithGoogle()">
+      <span class="google-icon"></span>
+      使用 Google 账号登录
+    </button>
+    <div class="login-note">登录即代表你同意使用条款<br>你的数据仅对你自己可见</div>
+  </div>
+</div>
+
 <div id="share-banner">📖 正在查看分享内容（只读模式）</div>
 
 <!-- 底部导航子菜单遮罩 -->
@@ -1177,7 +1425,7 @@ body::before {
   <div class="bottom-nav-inner" id="bnavInner"></div>
 </nav>
 
-<div id="app">
+<div id="app" style="display:none">
   <!-- SIDEBAR -->
   <nav id="sidebar">
     <div class="sidebar-logo">
@@ -1228,6 +1476,11 @@ body::before {
       <div class="view-toggle">
         <button class="view-btn active" id="gridBtn" onclick="setView('grid')">⊞</button>
         <button class="view-btn" id="listBtn" onclick="setView('list')">☰</button>
+      </div>
+      <div class="user-menu" onclick="logoutUser()">
+        <img id="userAvatar" src="" alt="">
+        <span id="userName"></span>
+        <span class="logout-icon">⏏</span>
       </div>
     </div>
     <div id="content">
@@ -1349,7 +1602,7 @@ body::before {
 // ══════════════════════════════════════════
 //  DATA MODEL
 // ══════════════════════════════════════════
-const CATS = {
+const DEFAULT_CATS = {
   tv:      { label:'电视剧', icon:'📺', color:'var(--cat-tv)',      subs:['国产剧','韩剧','美剧','日剧','英剧','泰剧','其他'] },
   movie:   { label:'电影',   icon:'🎬', color:'var(--cat-movie)',   subs:['国产','好莱坞','欧洲','日韩','动画电影','纪录片','其他'] },
   anime:   { label:'动漫',   icon:'🌸', color:'var(--cat-anime)',   subs:['日漫','国漫','美漫动画','其他'] },
@@ -1358,6 +1611,20 @@ const CATS = {
   article: { label:'文章',   icon:'📝', color:'var(--cat-article)', subs:['科技','文化','社会','学术','其他'] },
   video:   { label:'视频',   icon:'▶️',  color:'var(--cat-video)',   subs:['纪录片','Vlog','教程','短片','其他'] },
 };
+
+const CATS_KEY = 'watchlist_cats_v1';
+let CATS = {};
+
+function loadCats() {
+  try {
+    const stored = localStorage.getItem(CATS_KEY);
+    CATS = stored ? JSON.parse(stored) : JSON.parse(JSON.stringify(DEFAULT_CATS));
+  } catch(e) { CATS = JSON.parse(JSON.stringify(DEFAULT_CATS)); }
+}
+
+function saveCats() {
+  localStorage.setItem(CATS_KEY, JSON.stringify(CATS));
+}
 
 const STATUS_LABELS = { todo:'待看', watching:'正在看', done:'已看完' };
 const STATUS_CLASSES = { todo:'status-todo', watching:'status-watching', done:'status-done' };
@@ -1377,7 +1644,13 @@ let shareMode = false;
 const STORAGE_KEY = 'watchlist_v2';
 
 function save() {
+  // localStorage 保留作为本地缓存
   localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+}
+
+async function saveToCloud(item) {
+  if (window._fbSaveItem) await window._fbSaveItem(item);
+  else save();
 }
 
 function load() {
@@ -1444,12 +1717,14 @@ function buildTree() {
       <div class="tree-sub${isOpen?' open':''}" id="sub-${key}">
         ${cat.subs.map(sub => {
           const subCount = db.filter(i=>i.category===key && i.subcat===sub).length;
-          return `<div class="tree-sub-item${filterCat===key && filterSub===sub?' active':''}" 
-            onclick="selectSub('${key}','${sub}',this)">
-            ${sub}
+          return `<div class="tree-sub-item${filterCat===key && filterSub===sub?' active':''}"
+            onclick="selectSub('${key}','${escAttr(sub)}',this)">
+            <span style="flex:1">${escHtml(sub)}</span>
             <span class="sub-count">${subCount||''}</span>
+            <span class="sub-delete-btn" title="删除子分类" onclick="event.stopPropagation();deleteSubcat('${key}','${escAttr(sub)}')">×</span>
           </div>`;
         }).join('')}
+        <div class="tree-sub-add" onclick="promptAddSubcat('${key}')">＋ 新增子分类</div>
       </div>`;
     menu.appendChild(catDiv);
   });
@@ -1611,6 +1886,59 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+function escAttr(s) {
+  return String(s).replace(/'/g,"\\'").replace(/"/g,'&quot;');
+}
+
+// ── 删除子分类 ──
+function deleteSubcat(catKey, sub) {
+  const inUse = db.filter(i => i.category === catKey && i.subcat === sub).length;
+  const msg = inUse
+    ? `「${sub}」下有 ${inUse} 部作品，删除后这些作品的子分类会变为空。确定删除吗？`
+    : `确定删除子分类「${sub}」吗？`;
+  if (!confirm(msg)) return;
+  CATS[catKey].subs = CATS[catKey].subs.filter(s => s !== sub);
+  saveCats();
+  if (filterSub === sub) { filterSub = null; renderCards(); }
+  buildTree();
+  buildBottomNav();
+  toast(`已删除子分类「${sub}」`);
+}
+
+// ── 新增子分类 ──
+function promptAddSubcat(catKey) {
+  openAddSubcatModal(catKey);
+}
+
+// ── 新增子分类弹窗 ──
+function openAddSubcatModal(catKey) {
+  const cat = CATS[catKey];
+  document.getElementById('addSubcatCatName').textContent = cat.label;
+  document.getElementById('addSubcatInput').value = '';
+  document.getElementById('addSubcatModal').dataset.catKey = catKey;
+  document.getElementById('addSubcatModal').style.display = 'flex';
+  setTimeout(() => document.getElementById('addSubcatInput').focus(), 100);
+}
+
+function confirmAddSubcat() {
+  const modal = document.getElementById('addSubcatModal');
+  const catKey = modal.dataset.catKey;
+  const val = document.getElementById('addSubcatInput').value.trim();
+  if (!val) { toast('请输入子分类名称！'); return; }
+  if (CATS[catKey].subs.includes(val)) { toast('该子分类已存在！'); return; }
+  CATS[catKey].subs.push(val);
+  saveCats();
+  closeModal('addSubcatModal');
+  // 自动展开该大类
+  filterCat = catKey;
+  filterSub = null;
+  buildTree();
+  buildBottomNav();
+  updatePageTitle();
+  renderCards();
+  toast(`已添加子分类「${val}」`);
+}
+
 // ══════════════════════════════════════════
 //  DETAIL MODAL
 // ══════════════════════════════════════════
@@ -1698,31 +2026,25 @@ function copyShare(itemId) {
 // 导入分享的作品到自己的列表
 let sharedItemCache = null;
 
-function importSharedItem() {
+async function importSharedItem() {
   if (!sharedItemCache) return;
   const newItem = {
     ...sharedItemCache,
-    id: uid(),           // 生成新 id，不覆盖自己的数据
+    id: uid(),
     added: Date.now(),
     updated: Date.now(),
-    status: 'todo',      // 导入后默认设为"待看"
+    status: 'todo',
   };
-  load(); // 确保读取最新本地数据
-  // 检查是否已有同名
   const exists = db.find(x => x.title === newItem.title && x.category === newItem.category);
   if (exists) {
     if (!confirm(`「${newItem.title}」已在你的列表中，还是要再加一次吗？`)) return;
   }
-  db.unshift(newItem);
-  save();
   closeModal('detailModal');
-  // 跳转到干净页面（去掉 share 参数）
   shareMode = false;
   document.getElementById('share-banner').style.display = 'none';
   history.replaceState(null, '', location.pathname);
-  buildTree();
-  renderCards();
-  toast(`「${newItem.title}」已加入你的列表！状态已设为"待看"`);
+  await saveToCloud(newItem);
+  toast(`「${newItem.title}」已加入你的列表！`);
 }
 
 // ══════════════════════════════════════════
@@ -1849,7 +2171,7 @@ function handleCoverUpload(e) {
   reader.readAsDataURL(file);
 }
 
-function saveItem() {
+async function saveItem() {
   const title = document.getElementById('f-title').value.trim();
   if (!title) { toast('请输入作品名称！'); return; }
 
@@ -1870,17 +2192,9 @@ function saveItem() {
     updated: Date.now(),
   };
 
-  if (editingId) {
-    const idx = db.findIndex(x=>x.id===editingId);
-    if (idx > -1) db[idx] = item;
-  } else {
-    db.unshift(item);
-  }
-
-  save();
   closeModal('addModal');
-  renderCards();
-  buildTree();
+  toast(editingId ? '保存中…' : '添加中…');
+  await saveToCloud(item);
   toast(editingId ? '已更新！' : '添加成功！');
 }
 
@@ -1889,14 +2203,14 @@ function parseNum(v) {
   return isNaN(n) ? null : n;
 }
 
-function deleteItem() {
+async function deleteItem() {
   if (!editingId) return;
   if (!confirm('确定要删除这部作品吗？')) return;
-  db = db.filter(x=>x.id!==editingId);
-  save();
+  const id = editingId;
   closeModal('addModal');
-  renderCards();
-  buildTree();
+  toast('删除中…');
+  if (window._fbDeleteItem) await window._fbDeleteItem(id);
+  else { db = db.filter(x=>x.id!==id); save(); renderCards(); buildTree(); }
   toast('已删除');
 }
 
@@ -2038,11 +2352,33 @@ const _origFilterStatus = filterStatus;
 //  INIT
 // ══════════════════════════════════════════
 load();
+loadCats();
 updateSubcats();
 buildTree();
 buildBottomNav();
 renderCards();
 checkShareParam();
 </script>
+<!-- ── ADD SUBCAT MODAL ── -->
+<div class="modal-backdrop" id="addSubcatModal" style="display:none" onclick="closeOnBackdrop(event,'addSubcatModal')">
+  <div class="modal" style="max-width:380px" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div class="modal-title">新增子分类</div>
+      <button class="modal-close" onclick="closeModal('addSubcatModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">大类：<span id="addSubcatCatName" style="color:var(--accent)"></span></label>
+        <input class="form-input" id="addSubcatInput" type="text" placeholder="输入新子分类名称，如：AI、推理、恐怖…"
+          onkeydown="if(event.key==='Enter') confirmAddSubcat()">
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('addSubcatModal')">取消</button>
+        <button class="btn btn-primary" onclick="confirmAddSubcat()">添加</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
